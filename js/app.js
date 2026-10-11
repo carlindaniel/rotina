@@ -138,7 +138,7 @@
     const acoes = acoesDisponiveis(o).map(function (x, i) {
       return '<button type="button" class="btn' + (i === 0 && emAberto ? ' primario' : '') + ' pequeno" data-acao="'
         + x[0] + '" data-id="' + o.id + '">' + x[1] + '</button>';
-    }).join('') + (temDescricao ? '<button type="button" class="btn pequeno" data-acao="descricao" data-id="' + o.id + '">Descrição</button>' : '');
+    }).join('');
     return '<li class="oc ' + STATUS[statusVisual(o)].cls + '">'
       + '<div class="oc-hora"><strong>' + H.horaDe(o.inicio_planejado) + '</strong><span>'
       + H.horaDe(o.fim_planejado) + '</span></div>'
@@ -149,6 +149,7 @@
       + '</div>'
       + '<div class="oc-estado">' + chip(o) + '</div>'
       + (compacta ? '' : '<div class="oc-acoes">' + acoes + '</div>')
+      + (!compacta && temDescricao ? '<div class="oc-desc"><button type="button" class="btn pequeno" data-acao="descricao" data-id="' + o.id + '">Descrição</button></div>' : '')
       + '</li>';
   }
 
