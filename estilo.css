@@ -431,7 +431,44 @@ details summary:hover { color: var(--acento-hover); }
 .visor-corpo { padding: 16px 24px; }
 .visor-doc { height: 75vh; min-height: 420px; background: #fff; border: 1px solid var(--borda); border-radius: var(--raio-sm); overflow: hidden; }
 .visor-doc iframe { width: 100%; height: 100%; border: 0; display: block; }
-.visor-texto { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; max-height: 70vh; overflow-y: auto; }
+
+/* Página no estilo do Google Docs: sempre branca, mesmo no tema escuro */
+.doc-fundo {
+  height: 75vh; min-height: 420px; overflow-y: auto; background: #f9fbfd; border-radius: var(--raio-sm);
+  border: 1px solid var(--borda); padding: 0 16px 24px;
+}
+.doc-ferramentas {
+  position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 2px;
+  margin: 0 -16px 16px; padding: 8px 12px; background: #edf2fa; border-bottom: 1px solid #dadce0;
+}
+.doc-ferramentas[hidden] { display: none; }
+.doc-ferramentas button {
+  border: 0; background: none; color: #444746; font-size: 0.85rem; padding: 5px 9px; border-radius: 6px; cursor: pointer; min-height: 0;
+}
+.doc-ferramentas button:hover { background: rgba(68, 71, 70, 0.1); }
+.doc-ferramentas .sep { width: 1px; height: 20px; background: #c7c7c7; margin: 0 4px; }
+.doc-ferramentas[hidden] + .doc-pagina { margin-top: 24px; }
+.doc-pagina {
+  max-width: 816px; min-height: calc(75vh - 80px); margin: 0 auto; padding: 72px 96px;
+  background: #fff; color: #000; box-shadow: 0 1px 3px rgba(60, 64, 67, 0.15), 0 0 0 1px #e0e3e7;
+  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: 11pt; line-height: 1.38; overflow-wrap: anywhere;
+}
+.doc-pagina:focus { outline: none; }
+.doc-pagina[contenteditable="true"] { cursor: text; }
+.doc-pagina p { margin: 0 0 12px; }
+.doc-pagina h1 { font-size: 1.2em; font-weight: 700; margin: 0 0 14px; }
+.doc-pagina h2 { font-size: 1.05em; font-weight: 700; margin: 20px 0 10px; }
+.doc-pagina h3 { font-size: 1em; font-weight: 700; margin: 16px 0 8px; }
+.doc-pagina ul, .doc-pagina ol { margin: 0 0 12px; padding-left: 28px; }
+.doc-pagina li { margin: 2px 0; }
+.doc-pagina a { color: #1155cc; text-decoration: underline; }
+.doc-pagina blockquote { margin: 0 0 12px; padding-left: 14px; border-left: 3px solid #dadce0; color: #444746; }
+.doc-pagina hr { border: 0; border-top: 1px solid #c7c7c7; margin: 16px 0; }
+.doc-pagina table { border-collapse: collapse; width: 100%; margin: 4px 0 14px; }
+.doc-pagina th, .doc-pagina td { padding: 6px 8px; text-align: left; vertical-align: top; }
+.doc-pagina th { font-weight: 700; text-align: center; }
+.doc-pagina th p, .doc-pagina td p { margin: 0; }
+.doc-pagina .doc-vazio { color: #80868b; font-style: italic; }
 .visor .modal-acoes { align-items: center; }
 .visor-links { display: flex; gap: 10px; margin-right: auto; }
 .visor-links[hidden] { display: none; }
@@ -718,7 +755,15 @@ details summary:hover { color: var(--acento-hover); }
 /* ----- Data específica: nome em cima; início, duração e data na 2ª linha ----- */
 .form-grade.data-especifica { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .data-especifica .campo-nome, .data-especifica .campo-lembrete, .data-especifica .campo-descricao { grid-column: 1 / -1; }
-.data-especifica .campo-descricao textarea { width: 100%; resize: vertical; }
+.campo-descricao { display: flex; flex-direction: column; gap: 5px; }
+.campo-descricao .rotulo { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; color: var(--tinta-2); }
+.campo-descricao small { font-size: 0.76rem; color: var(--tinta-2); }
+.desc-linha { display: flex; align-items: center; gap: 10px; }
+.desc-resumo {
+  flex: 1; min-width: 0; padding: 8px 12px; border: 1px solid var(--eixo); border-radius: var(--raio-sm); background: var(--campo);
+  font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.desc-resumo.vazio { color: var(--tinta-3); font-style: italic; }
 .data-especifica .campo-nome input { width: 100%; }
 .data-especifica select, .data-especifica input[type="time"], .data-especifica input[type="date"] { width: 100%; }
 #pl-dur-livre { margin-top: 6px; width: 100%; }
@@ -750,7 +795,10 @@ details summary:hover { color: var(--acento-hover); }
   .dia-chip { font-size: 0.68rem; padding: 5px 1px; border-radius: 10px; }
   .prev-item { grid-template-columns: 52px minmax(0, 1fr); grid-template-areas: "hora info" "hora estado"; }
   .modal h2, #modal-corpo, .visor-corpo { padding-left: 18px; padding-right: 18px; }
-  .visor-doc { height: 65vh; min-height: 320px; }
+  .visor-doc, .doc-fundo { height: 65vh; min-height: 320px; }
+  .doc-fundo { padding: 0 8px 16px; }
+  .doc-ferramentas { margin: 0 -8px 12px; }
+  .doc-pagina { padding: 28px 22px; min-height: calc(65vh - 80px); }
   .modal-acoes { padding: 12px 18px; }
 }
 

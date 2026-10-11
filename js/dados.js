@@ -174,12 +174,25 @@
       async listarCatalogo() { return clonar(catalogo); },
       async listarMotivos() { return clonar(motivos); },
       itemCatalogo: function (o) { return itemCatalogo(o); },
-      /** O que o visor mostra para uma ocorrência: o link do catálogo (rotina/exercício) ou a descrição da data específica. */
+      /**
+       * O que o visor mostra para uma ocorrência: { conteudo, modelo_id }.
+       * Rotina/exercício: o link do catálogo (só leitura). Atividade própria de data específica: a descrição da programação,
+       * editável (modelo_id preenchido). Sem nada para mostrar nem editar: null.
+       */
       descricaoDe: function (o) {
         const c = itemCatalogo(o);
-        if (c && c.url) return c.url;
+        if (c && c.url) return { conteudo: c.url, modelo_id: null };
         const m = o.modelo_id && modelos.find(function (x) { return x.id === o.modelo_id; });
-        return m && H.tipoRecorrencia(m) === 'unica' ? m.descricao || '' : '';
+        if (!m || H.tipoRecorrencia(m) !== 'unica') return null;
+        return o.tipo === 'livre' ? { conteudo: m.descricao || '', modelo_id: m.id }
+          : m.descricao ? { conteudo: m.descricao, modelo_id: m.id } : null;
+      },
+
+      /** Grava só a descrição de uma programação de data específica. */
+      async salvarDescricao(modeloId, descricao) {
+        const r = await cliente.from('agenda_modelos').update({ descricao: (descricao || '').trim() || null }).eq('id', modeloId);
+        if (r.error) throw erro(r.error);
+        await recarregarModelos();
       },
       expandir: expandir,
       sequenciaModelo: sequenciaModelo,

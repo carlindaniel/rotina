@@ -47,7 +47,7 @@
     });
   }
 
-  // ---------- Visor de descrição (Google Docs/Sheets/Slides ou texto) ----------
+  // ---------- Visor de descrição (Google Docs/Sheets/Slides, texto ou texto formatado) ----------
   /** Converte links do Google Docs/Sheets/Slides para a versão incorporável (mesma regra de treinar/rotina.html). */
   function urlIncorporavel(url) {
     const m = url.match(/^(https:\/\/docs\.google\.com\/(document|spreadsheets|presentation)\/d\/[a-zA-Z0-9_-]+)/);
@@ -56,29 +56,160 @@
     if (m[2] === 'spreadsheets') return m[1] + '/htmlview?widget=true&headers=false';
     return m[1] + '/preview';
   }
+  function ehLink(v) { return /^https?:\/\/\S+$/i.test(v); }
+  function ehHtml(v) { return /^</.test(v); }
   /** Texto com quebras de linha e links clicáveis (já escapado). */
   function textoComLinks(t) {
     return esc(t).replace(/https?:\/\/[^\s<]+/g, function (u) { return '<a href="' + u + '" target="_blank" rel="noopener">' + u + '</a>'; });
   }
-  /** Abre o visor: um link (só ele) é incorporado; qualquer outro conteúdo aparece como texto. */
-  function abrirVisor(titulo, conteudoDesc) {
-    const dlg = $('#visor'), frame = $('#visor-frame'), v = (conteudoDesc || '').trim();
-    const link = /^https?:\/\/\S+$/i.test(v) ? v : null;
-    $('#visor-titulo').textContent = titulo;
-    $('#visor-doc').hidden = !link;
-    $('#visor-texto').hidden = !!link;
-    $('#visor-links').hidden = !link;
-    $('#visor-texto').innerHTML = link ? '' : textoComLinks(v);
-    frame.src = link ? urlIncorporavel(link) : 'about:blank';
-    $('#visor-abrir').href = link || '#';
-    dlg.onclose = function () { frame.src = 'about:blank'; };
-    dlg.showModal();
+
+  // Texto formatado: só estas marcações sobrevivem (o resto vira texto). Cobre o que se cola do Google Docs.
+  const TAGS_DESC = { P: 1, BR: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, H1: 1, H2: 1, H3: 1, UL: 1, OL: 1, LI: 1, A: 1,
+    BLOCKQUOTE: 1, HR: 1, TABLE: 1, THEAD: 1, TBODY: 1, TR: 1, TD: 1, TH: 1 };
+  const DESCARTAR = { SCRIPT: 1, STYLE: 1, IFRAME: 1, OBJECT: 1, EMBED: 1, TEMPLATE: 1, META: 1, LINK: 1, TITLE: 1, SVG: 1, MATH: 1 };
+  function limparHtml(html) {
+    const origem = new DOMParser().parseFromString('<body>' + html + '</body>', 'text/html').body;
+    function copiar(no, destino) {
+      Array.prototype.forEach.call(no.childNodes, function (n) {
+        if (n.nodeType === 3) { destino.appendChild(document.createTextNode(n.nodeValue)); return; }
+        if (n.nodeType !== 1 || DESCARTAR[n.tagName]) return;
+        const st = n.style || {}, peso = String(st.fontWeight || '');
+        let alvo = destino;
+        // o Google Docs embrulha tudo num <b style="font-weight:normal">: esse <b> é descartado
+        if (TAGS_DESC[n.tagName] && !((n.tagName === 'B' || n.tagName === 'STRONG') && /^(normal|[1-5]00)$/.test(peso))) {
+          alvo = document.createElement(n.tagName);
+          if (n.tagName === 'A' && /^https?:\/\//i.test(n.getAttribute('href') || '')) {
+            alvo.setAttribute('href', n.getAttribute('href')); alvo.setAttribute('target', '_blank'); alvo.setAttribute('rel', 'noopener');
+          }
+          ['colspan', 'rowspan'].forEach(function (a) { if (/^\d{1,2}$/.test(n.getAttribute(a) || '')) alvo.setAttribute(a, n.getAttribute(a)); });
+          destino.appendChild(alvo);
+        } else if (n.tagName === 'DIV') {
+          alvo = destino.appendChild(document.createElement('p'));
+        }
+        // o Google Docs marca negrito/itálico/sublinhado por estilo em <span>
+        if (/^(bold|[6-9]00)$/.test(peso) && !/^(B|STRONG|H\d|TH)$/.test(alvo.tagName)) alvo = alvo.appendChild(document.createElement('b'));
+        if (st.fontStyle === 'italic' && !/^(I|EM)$/.test(alvo.tagName)) alvo = alvo.appendChild(document.createElement('i'));
+        if (/underline/.test(st.textDecoration || st.textDecorationLine || '') && n.tagName !== 'A' && alvo.tagName !== 'U') alvo = alvo.appendChild(document.createElement('u'));
+        copiar(n, alvo);
+      });
+    }
+    const out = document.createElement('div');
+    copiar(origem, out);
+    out.querySelectorAll('p, h1, h2, h3, li').forEach(function (el) { if (!el.textContent.trim() && !el.querySelector('br')) el.remove(); });
+    return out.innerHTML;
   }
+  /** Conteúdo salvo -> HTML da página (texto simples ganha parágrafos e links). */
+  function htmlDaPagina(v) {
+    if (ehHtml(v)) return limparHtml(v);
+    return v.split(/\n{2,}/).map(function (par) { return '<p>' + textoComLinks(par).replace(/\n/g, '<br>') + '</p>'; }).join('');
+  }
+
+  const visor = { aoSalvar: null, conteudo: '', editando: false, sujo: false };
+  /**
+   * Abre o visor. Um link sozinho é incorporado (Google Docs etc.); texto aparece numa página no estilo do Google Docs.
+   * opcoes.aoSalvar(valor) torna o conteúdo editável; opcoes.editar abre já no modo de edição; opcoes.rotuloSalvar muda o botão.
+   */
+  function abrirVisor(titulo, conteudoDesc, opcoes) {
+    opcoes = opcoes || {};
+    Object.assign(visor, { aoSalvar: opcoes.aoSalvar || null, conteudo: (conteudoDesc || '').trim(), sujo: false });
+    $('#visor-titulo').textContent = titulo;
+    $('#visor-salvar').textContent = opcoes.rotuloSalvar || 'Salvar';
+    const dlg = $('#visor');
+    dlg.onclose = function () { $('#visor-frame').src = 'about:blank'; };
+    if (opcoes.editar) editarVisor(); else mostrarVisor();
+    if (!dlg.open) dlg.showModal();
+    if (visor.editando) $('#visor-pagina').focus();
+  }
+  function mostrarVisor() {
+    const v = visor.conteudo, link = ehLink(v) ? v : null, pagina = $('#visor-pagina'), frame = $('#visor-frame');
+    const src = link ? urlIncorporavel(link) : 'about:blank';
+    visor.editando = false;
+    $('#visor-doc').hidden = !link;
+    $('#visor-folha').hidden = !!link;
+    $('#visor-ferramentas').hidden = true;
+    $('#visor-links').hidden = !link;
+    pagina.contentEditable = 'false';
+    pagina.innerHTML = link ? '' : v ? htmlDaPagina(v)
+      : '<p class="doc-vazio">Sem descrição.' + (visor.aoSalvar ? ' Clique em Editar para escrever.' : '') + '</p>';
+    if (frame.getAttribute('src') !== src) frame.src = src;
+    $('#visor-abrir').href = link || '#';
+    $('#visor-editar').hidden = !visor.aoSalvar;
+    $('#visor-cancelar').hidden = $('#visor-salvar').hidden = true;
+    $('#visor-fechar').hidden = false;
+  }
+  function editarVisor() {
+    const v = visor.conteudo, pagina = $('#visor-pagina');
+    visor.editando = true; visor.sujo = false;
+    $('#visor-doc').hidden = true; $('#visor-frame').src = 'about:blank';
+    $('#visor-folha').hidden = false;
+    $('#visor-ferramentas').hidden = false;
+    $('#visor-links').hidden = true;
+    pagina.innerHTML = v ? htmlDaPagina(v) : '<p><br></p>';
+    pagina.contentEditable = 'true';
+    $('#visor-editar').hidden = $('#visor-fechar').hidden = true;
+    $('#visor-cancelar').hidden = $('#visor-salvar').hidden = false;
+    pagina.focus();
+  }
+  /** Conteúdo do editor -> valor a gravar: vazio, um link sozinho (será incorporado) ou HTML limpo. */
+  function valorDoEditor() {
+    const pagina = $('#visor-pagina'), texto = pagina.innerText.trim();
+    if (!texto && !pagina.querySelector('hr, table')) return '';
+    if (ehLink(texto) && !pagina.querySelector('b, strong, i, em, u, h1, h2, h3, ul, ol, table')) return texto;
+    return limparHtml(pagina.innerHTML);
+  }
+  $('#visor-pagina').addEventListener('input', function () { visor.sujo = true; });
+  $('#visor-pagina').addEventListener('paste', function (e) {   // cola do Google Docs mantendo só a formatação suportada
+    const dados = e.clipboardData;
+    if (!dados || !visor.editando) return;
+    e.preventDefault();
+    const html = dados.getData('text/html');
+    document.execCommand('insertHTML', false, html ? limparHtml(html) : htmlDaPagina(dados.getData('text/plain')));
+  });
+  $('#visor-ferramentas').addEventListener('mousedown', function (e) { if (e.target.closest('button')) e.preventDefault(); });   // não tira o cursor do texto
+  $('#visor-ferramentas').addEventListener('click', function (e) {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.bloco) document.execCommand('formatBlock', false, '<' + b.dataset.bloco + '>');
+    else if (b.dataset.cmd === 'createLink') {
+      const url = prompt('Endereço do link (https://...)');
+      if (url && /^https?:\/\//i.test(url.trim())) document.execCommand('createLink', false, url.trim());
+      else if (url) toast('Use um endereço começando com https://', true);
+    } else document.execCommand(b.dataset.cmd, false, null);
+    visor.sujo = true;
+    $('#visor-pagina').focus();
+  });
+  $('#visor-editar').addEventListener('click', editarVisor);
+  $('#visor-cancelar').addEventListener('click', function () {
+    if (visor.sujo && !confirm('Descartar as alterações da descrição?')) return;
+    mostrarVisor();
+  });
+  $('#visor-salvar').addEventListener('click', async function () {
+    const b = this, valor = valorDoEditor();
+    b.disabled = true;
+    try {
+      await visor.aoSalvar(valor);
+      visor.conteudo = valor;
+      mostrarVisor();
+    } catch (e) { toast(e.message, true); } finally { b.disabled = false; }
+  });
+  $('#visor').addEventListener('cancel', function (e) {   // Esc
+    if (visor.editando && visor.sujo && !confirm('Descartar as alterações da descrição?')) e.preventDefault();
+  });
   $('#visor-recarregar').addEventListener('click', function () {
     const f = $('#visor-frame'), src = f.src;
     f.src = 'about:blank';
     setTimeout(function () { f.src = src; }, 50);
   });
+  /** Resumo de uma linha da descrição (Planejamento). */
+  function resumoDescricao(v) {
+    v = (v || '').trim();
+    if (!v) return '';
+    if (ehLink(v)) return v;
+    const div = document.createElement('div');
+    div.innerHTML = htmlDaPagina(v);
+    const t = div.textContent.replace(/\s+/g, ' ').trim();
+    return t.length > 140 ? t.slice(0, 140) + '…' : t;
+  }
 
   const STATUS = {
     agendada: { rotulo: 'Agendada', icone: '○', cls: 'st-agendada' },
@@ -159,7 +290,15 @@
   }
 
   async function executarAcao(acao, o) {
-    if (acao === 'descricao') { abrirVisor(o.titulo_planejado, D.descricaoDe(o)); return; }
+    if (acao === 'descricao') {
+      const d = D.descricaoDe(o);
+      if (!d) return;
+      abrirVisor(o.titulo_planejado, d.conteudo, d.modelo_id ? {
+        editar: !d.conteudo,
+        aoSalvar: async function (v) { await D.salvarDescricao(d.modelo_id, v); toast('Descrição salva.'); },
+      } : null);
+      return;
+    }
     const agora = Date.now();
     let patch = null;
     if (acao === 'iniciar') {
@@ -561,8 +700,10 @@
         + '<label>Data <input type="date" id="pl-data" value="' + esc(r.data_inicio || '') + '" min="' + hoje + '" required>'
         + '<small id="pl-data-dia">' + esc(r.data_inicio ? H.dataExtensa(r.data_inicio) : '') + '</small></label>'
         + lembrete.replace('<label>Lembrete', '<label class="campo-lembrete">Lembrete')
-        + '<label class="campo-descricao">Descrição <textarea id="pl-descricao" rows="2" placeholder="Link do Google Docs (https://docs.google.com/document/d/...) ou um texto">'
-        + esc(r.descricao || '') + '</textarea><small>aparece no botão Descrição da tela Execução</small></label></div>'
+        + '<div class="campo-descricao"><span class="rotulo">Descrição</span>'
+        + '<div class="desc-linha"><span id="pl-desc-resumo" class="desc-resumo"></span>'
+        + '<button type="button" class="btn pequeno" id="pl-desc-editar">Editar descrição</button></div>'
+        + '<small>texto formatado ou link do Google Docs · aparece no botão Descrição da tela Execução</small></div></div>'
       : '<div class="form-grade">'
         + '<label>Nome do modelo <input id="pl-nome" value="' + esc(r.nome) + '" placeholder="Ex.: Manhã" maxlength="80" required></label>'
         + inicio + lembrete + ativo + '</div>'
@@ -948,7 +1089,23 @@
       r.itens.forEach(function (it) { if (it.tipo === 'livre') it.titulo = r.nome.trim(); });   // atividade própria usa o nome como título
       sujar(); renderSequencia();
     });
-    if ($('#pl-descricao')) $('#pl-descricao').addEventListener('input', function (e) { r.descricao = e.target.value; rascunhoSujo = true; });
+    function mostrarResumoDesc() {
+      const t = resumoDescricao(r.descricao), el = $('#pl-desc-resumo');
+      el.textContent = t || 'Sem descrição';
+      el.classList.toggle('vazio', !t);
+    }
+    if ($('#pl-desc-editar')) {
+      mostrarResumoDesc();
+      $('#pl-desc-editar').addEventListener('click', function () {
+        abrirVisor('Descrição: ' + (r.nome.trim() || 'data específica'), r.descricao, {
+          editar: true, rotuloSalvar: 'Aplicar',
+          aoSalvar: async function (v) {
+            r.descricao = v; rascunhoSujo = true; mostrarResumoDesc();
+            toast('Descrição alterada. Clique em Salvar na data para gravar.');
+          },
+        });
+      });
+    }
     if ($('#pl-dur-sel')) {
       $('#pl-dur-sel').value = opcaoDuracao(r.duracao_livre_seg);
       $('#pl-dur-sel').addEventListener('change', function (e) {
