@@ -428,8 +428,27 @@
     const novo = { id: null, nome: '', hora_inicio: '18:00', intervalo_dias: null, dias_semana: [H.diaSemana(hoje)],
       data_inicio: hoje, data_fim: null, ativo: true, lembrete_minutos: 5, itens: [] };
     if (tipo === 'modelo') novo.recorrencia = 'semanal';
-    else { novo.recorrencia = 'unica'; novo.data_fim = hoje; novo.hora_inicio = null; }   // data específica: início sempre em branco
+    else { novo.recorrencia = 'unica'; novo.data_fim = hoje; novo.hora_inicio = horaPadraoHoje(); }   // data específica de hoje: agora + 5 min
     return novo;
+  }
+  /** Hora atual ('HH:MM', arredondada para cima ao minuto). */
+  function horaAgora() {
+    const d = new Date();
+    const min = d.getHours() * 60 + d.getMinutes() + (d.getSeconds() || d.getMilliseconds() ? 1 : 0);
+    return H.segParaHora(Math.min(min, 23 * 60 + 59) * 60);
+  }
+  /** Início sugerido para uma data específica de hoje: agora + 5 min (no máximo 23:59). */
+  function horaPadraoHoje() {
+    const d = new Date();
+    return H.segParaHora(Math.min(d.getHours() * 60 + d.getMinutes() + 5, 23 * 60 + 59) * 60);
+  }
+  /** Data e início salvos da data específica em edição: só exige início >= agora quando são alterados. */
+  let inicioSalvo = null;
+  /** Início preenchido automaticamente (agora + 5 min) e ainda não editado; null se não houver. */
+  let horaAuto = null;
+  function exigeInicioFuturo(m) {
+    return ehData(m) && m.data_inicio === H.hojeIso()
+      && !(inicioSalvo && inicioSalvo.data === m.data_inicio && inicioSalvo.hora === m.hora_inicio);
   }
   function ehData(m) { return H.tipoRecorrencia(m) === 'unica'; }
   const INTERVALOS_FIXOS = [20, 30, 90];
@@ -465,6 +484,8 @@
     if (!rascunho || rascunhoAlvo !== alvo) {
       rascunho = salvo ? JSON.parse(JSON.stringify(salvo)) : modeloNovo(alvo === 'novo:modelo' ? 'modelo' : 'data');
       if (ehData(rascunho)) rascunho.ativo = true;
+      inicioSalvo = salvo ? { data: salvo.data_inicio, hora: salvo.hora_inicio } : null;
+      horaAuto = salvo ? null : rascunho.hora_inicio;
       rascunhoAlvo = alvo;
       rascunhoSujo = false;
     }
@@ -492,8 +513,9 @@
       ? '<div class="form-grade data-especifica">'
         + '<label class="campo-nome">Nome <input id="pl-nome" value="' + esc(r.nome) + '" placeholder="Ex.: Consulta médica" maxlength="80">'
         + '<small id="pl-nome-dica"></small></label>'
-        + '<label>Início da atividade <input type="time" id="pl-inicio" value="' + esc(r.hora_inicio || '') + '">'
-        + '<small>obrigatório · não pode ser 00:00</small></label>'
+        + '<label>Início da atividade <input type="time" id="pl-inicio" value="' + esc(r.hora_inicio || '') + '"'
+        + (exigeInicioFuturo(r) ? ' min="' + horaAgora() + '"' : '') + '>'
+        + '<small>obrigatório · não pode ser 00:00 · hoje, a partir de agora</small></label>'
         + '<label id="campo-dur-livre"' + (r.itens.length ? ' hidden' : '') + '>Duração <select id="pl-dur-sel">'
         + '<option value="padrao">15 min (padrão)</option>'
         + SUGESTOES_DURACAO.map(function (s) { return '<option value="' + s + '">' + (s / 60) + ' min</option>'; }).join('')
@@ -844,6 +866,7 @@
         if (paraData) {
           const d = r.data_inicio && r.data_inicio >= hoje ? r.data_inicio : hoje;
           r.recorrencia = 'unica'; r.intervalo_dias = null; r.data_inicio = d; r.data_fim = d; r.ativo = true;
+          if (d === hoje && (!r.hora_inicio || r.hora_inicio < horaAgora())) r.hora_inicio = horaAuto = horaPadraoHoje();
         } else {
           r.recorrencia = 'semanal'; r.intervalo_dias = null; r.data_fim = null;
           r.dias_semana = [H.diaSemana(r.data_inicio || hoje)];
@@ -857,6 +880,16 @@
       const v = e.target.value;
       r.data_inicio = v || null; r.data_fim = v || null;
       if (v) r.dias_semana = [H.diaSemana(v)];
+      // hoje: início padrão agora + 5 min; outros dias: em branco (se o início era o automático)
+      if (v === H.hojeIso()) {
+        if (!r.hora_inicio || (exigeInicioFuturo(r) && r.hora_inicio < horaAgora())) r.hora_inicio = horaAuto = horaPadraoHoje();
+      } else if (r.hora_inicio && r.hora_inicio === horaAuto) {
+        r.hora_inicio = horaAuto = null;
+      }
+      const campoInicio = $('#pl-inicio');
+      campoInicio.value = r.hora_inicio || '';
+      if (exigeInicioFuturo(r)) campoInicio.min = horaAgora(); else campoInicio.removeAttribute('min');
+      atualizarHorarios();
       $('#pl-data-dia').textContent = v ? H.dataExtensa(v) : '';
       if (v) previaEstado.data = v;   // a prévia acompanha a data escolhida
       sujar();
@@ -906,7 +939,9 @@
       }
       sujar(); atualizarHorarios();
     });
-    $('#pl-inicio').addEventListener('input', function (e) { r.hora_inicio = e.target.value || null; sujar(); atualizarHorarios(); });
+    $('#pl-inicio').addEventListener('input', function (e) {
+      r.hora_inicio = e.target.value || null; horaAuto = null; sujar(); atualizarHorarios();
+    });
     $('#pl-lembrete').addEventListener('input', function (e) {
       r.lembrete_minutos = e.target.value === '' ? null : Number(e.target.value); sujar();
     });
@@ -944,7 +979,7 @@
     function definirInicio(i, v) {
       const it = r.itens[i];
       if (i === 0) {
-        r.hora_inicio = v || null; it.hora_fixa = null;
+        r.hora_inicio = v || null; it.hora_fixa = null; horaAuto = null;
         $('#pl-inicio').value = v || '';
       } else if (!v) {
         it.hora_fixa = null;
@@ -1031,6 +1066,10 @@
             const campo = $('#pl-inicio'); campo.scrollIntoView({ block: 'center' }); campo.focus();
             toast('Defina o horário de início da atividade (não pode ficar em branco nem 00:00).', true); return;
           }
+          if (exigeInicioFuturo(r) && r.hora_inicio < horaAgora()) {
+            const campo = $('#pl-inicio'); campo.min = horaAgora(); campo.scrollIntoView({ block: 'center' }); campo.focus();
+            toast('Para hoje, o início deve ser a partir de agora (' + horaAgora() + ').', true); return;
+          }
         }
         if (!ehData(r) && !r.hora_inicio && !(r.itens[0] && r.itens[0].hora_fixa)) {
           const campo = $('#pl-inicio'); campo.scrollIntoView({ block: 'center' }); campo.focus();
@@ -1050,6 +1089,7 @@
         }
         const salvo = await D.salvarModelo(r);
         rascunho = salvo; rascunhoSujo = false;
+        inicioSalvo = { data: salvo.data_inicio, hora: salvo.hora_inicio }; horaAuto = null;
         toast(ehData(salvo) ? 'Programação da data salva. Ocorrências atualizadas.' : 'Modelo salvo. Ocorrências futuras atualizadas.');
         googleEmSegundoPlano(ehData(salvo) && salvo.data_inicio === H.hojeIso() ? 'hoje' : 'limpar');
         if (location.hash !== '#planejamento?modelo=' + salvo.id) location.hash = '#planejamento?modelo=' + salvo.id;
