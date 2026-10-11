@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Minha Rotina</title>
+  <meta name="theme-color" content="#0b0b0f">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <header class="topo">
+    <div class="topo-linha">
+      <a class="marca" href="#painel">Minha Rotina</a>
+      <span class="aviso" id="aviso" hidden></span>
+      <span class="usuario" id="usuario" hidden>
+        <span id="usuario-email"></span>
+        <button type="button" class="link" id="btn-sair">Sair</button>
+      </span>
+    </div>
+    <nav class="abas" id="abas" aria-label="Seções">
+      <a href="#painel" data-rota="painel">Painel</a>
+      <a href="#execucao" data-rota="execucao">Execução</a>
+      <a href="#planejamento" data-rota="planejamento">Planejamento</a>
+      <a href="#modelos" data-rota="modelos">Modelos</a>
+      <a href="#historico" data-rota="historico">Histórico</a>
+      <a href="#analises" data-rota="analises">Análises</a>
+    </nav>
+  </header>
+
+  <main id="conteudo" class="conteudo" tabindex="-1"></main>
+
+  <dialog id="modal" class="modal">
+    <form method="dialog" id="modal-form">
+      <h2 id="modal-titulo"></h2>
+      <div id="modal-corpo"></div>
+      <div class="modal-acoes">
+        <button value="cancelar" type="submit" class="btn" formnovalidate>Voltar</button>
+        <button value="ok" type="submit" class="btn primario" id="modal-ok">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/horarios.js"></script>
+  <script src="js/indicadores.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/conexao.js"></script>
+  <script src="js/projecao.js"></script>
+  <script src="js/dados.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
