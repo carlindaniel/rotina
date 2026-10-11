@@ -104,6 +104,50 @@
     return v.split(/\n{2,}/).map(function (par) { return '<p>' + textoComLinks(par).replace(/\n/g, '<br>') + '</p>'; }).join('');
   }
 
+  // O visor é montado aqui (e não no index.html) para funcionar mesmo com uma versão antiga do index.html em cache.
+  const VISOR_HTML = [
+    '<dialog id="visor" class="modal visor" aria-labelledby="visor-titulo">',
+    '  <form method="dialog">',
+    '    <h2 id="visor-titulo"></h2>',
+    '    <div class="visor-corpo">',
+    '      <div class="visor-doc" id="visor-doc" hidden><iframe id="visor-frame" src="about:blank" title="Descrição" allowfullscreen></iframe></div>',
+    '      <div class="doc-fundo" id="visor-folha" hidden>',
+    '        <div class="doc-ferramentas" id="visor-ferramentas" role="toolbar" aria-label="Formatação" hidden>',
+    '          <button type="button" data-cmd="bold" title="Negrito (Ctrl+B)"><b>N</b></button>',
+    '          <button type="button" data-cmd="italic" title="Itálico (Ctrl+I)"><i>I</i></button>',
+    '          <button type="button" data-cmd="underline" title="Sublinhado (Ctrl+U)"><u>S</u></button>',
+    '          <span class="sep" aria-hidden="true"></span>',
+    '          <button type="button" data-bloco="h1" title="Título">Título</button>',
+    '          <button type="button" data-bloco="h2" title="Subtítulo">Subtítulo</button>',
+    '          <button type="button" data-bloco="p" title="Texto normal">Texto</button>',
+    '          <span class="sep" aria-hidden="true"></span>',
+    '          <button type="button" data-cmd="insertUnorderedList" title="Lista com marcadores">• Lista</button>',
+    '          <button type="button" data-cmd="insertOrderedList" title="Lista numerada">1. Lista</button>',
+    '          <button type="button" data-cmd="createLink" title="Inserir link">Link</button>',
+    '          <button type="button" data-cmd="removeFormat" title="Limpar formatação">Limpar</button>',
+    '        </div>',
+    '        <div class="doc-pagina" id="visor-pagina"></div>',
+    '      </div>',
+    '    </div>',
+    '    <div class="modal-acoes">',
+    '      <span class="visor-links" id="visor-links">',
+    '        <button type="button" class="btn" id="visor-recarregar">Recarregar</button>',
+    '        <a class="btn" id="visor-abrir" href="#" target="_blank" rel="noopener">Abrir em nova aba ↗</a>',
+    '      </span>',
+    '      <button type="button" class="btn" id="visor-editar" hidden>Editar</button>',
+    '      <button type="button" class="btn" id="visor-cancelar" hidden>Cancelar</button>',
+    '      <button type="button" class="btn primario" id="visor-salvar" hidden>Salvar</button>',
+    '      <button value="fechar" type="submit" class="btn primario" id="visor-fechar">Fechar</button>',
+    '    </div>',
+    '  </form>',
+    '</dialog>'
+  ].join('\n');
+  (function montarVisor() {
+    const antigo = $('#visor');
+    if (antigo) antigo.remove();
+    document.body.insertAdjacentHTML('beforeend', VISOR_HTML);
+  })();
+
   const visor = { aoSalvar: null, conteudo: '', editando: false, sujo: false };
   /**
    * Abre o visor. Um link sozinho é incorporado (Google Docs etc.); texto aparece numa página no estilo do Google Docs.
