@@ -47,6 +47,39 @@
     });
   }
 
+  // ---------- Visor de descrição (Google Docs/Sheets/Slides ou texto) ----------
+  /** Converte links do Google Docs/Sheets/Slides para a versão incorporável (mesma regra de treinar/rotina.html). */
+  function urlIncorporavel(url) {
+    const m = url.match(/^(https:\/\/docs\.google\.com\/(document|spreadsheets|presentation)\/d\/[a-zA-Z0-9_-]+)/);
+    if (!m) return url;
+    if (m[2] === 'presentation') return m[1] + '/embed?start=false&loop=false';
+    if (m[2] === 'spreadsheets') return m[1] + '/htmlview?widget=true&headers=false';
+    return m[1] + '/preview';
+  }
+  /** Texto com quebras de linha e links clicáveis (já escapado). */
+  function textoComLinks(t) {
+    return esc(t).replace(/https?:\/\/[^\s<]+/g, function (u) { return '<a href="' + u + '" target="_blank" rel="noopener">' + u + '</a>'; });
+  }
+  /** Abre o visor: um link (só ele) é incorporado; qualquer outro conteúdo aparece como texto. */
+  function abrirVisor(titulo, conteudoDesc) {
+    const dlg = $('#visor'), frame = $('#visor-frame'), v = (conteudoDesc || '').trim();
+    const link = /^https?:\/\/\S+$/i.test(v) ? v : null;
+    $('#visor-titulo').textContent = titulo;
+    $('#visor-doc').hidden = !link;
+    $('#visor-texto').hidden = !!link;
+    $('#visor-links').hidden = !link;
+    $('#visor-texto').innerHTML = link ? '' : textoComLinks(v);
+    frame.src = link ? urlIncorporavel(link) : 'about:blank';
+    $('#visor-abrir').href = link || '#';
+    dlg.onclose = function () { frame.src = 'about:blank'; };
+    dlg.showModal();
+  }
+  $('#visor-recarregar').addEventListener('click', function () {
+    const f = $('#visor-frame'), src = f.src;
+    f.src = 'about:blank';
+    setTimeout(function () { f.src = src; }, 50);
+  });
+
   const STATUS = {
     agendada: { rotulo: 'Agendada', icone: '○', cls: 'st-agendada' },
     em_andamento: { rotulo: 'Em andamento', icone: '▶', cls: 'st-andamento' },
@@ -89,7 +122,6 @@
 
   function linhaOcorrencia(o, compacta) {
     ocCache[o.id] = o;
-    const cat = D.itemCatalogo(o);
     const meta = [o.categoria_planejada, o.area_planejada, H.duracaoTexto(o.duracao_planejada_seg)]
       .filter(Boolean);
     if (o.duracao_real_seg != null) meta.push('real ' + H.duracaoTexto(o.duracao_real_seg));
@@ -102,15 +134,16 @@
     }
     if (o.observacao) extra.push(esc(o.observacao));
     const emAberto = o.status === 'agendada' || o.status === 'em_andamento';
+    const temDescricao = !!D.descricaoDe(o);
     const acoes = acoesDisponiveis(o).map(function (x, i) {
       return '<button type="button" class="btn' + (i === 0 && emAberto ? ' primario' : '') + ' pequeno" data-acao="'
         + x[0] + '" data-id="' + o.id + '">' + x[1] + '</button>';
-    }).join('');
+    }).join('') + (temDescricao ? '<button type="button" class="btn pequeno" data-acao="descricao" data-id="' + o.id + '">Descrição</button>' : '');
     return '<li class="oc ' + STATUS[statusVisual(o)].cls + '">'
       + '<div class="oc-hora"><strong>' + H.horaDe(o.inicio_planejado) + '</strong><span>'
       + H.horaDe(o.fim_planejado) + '</span></div>'
       + '<div class="oc-info"><div class="oc-titulo">' + esc(o.titulo_planejado)
-      + (cat && cat.url ? ' <a class="doc" href="' + esc(cat.url) + '" target="_blank" rel="noopener">guia ↗</a>' : '')
+      + (compacta && temDescricao ? ' <button type="button" class="link doc" data-acao="descricao" data-id="' + o.id + '">descrição</button>' : '')
       + '</div><div class="oc-meta">' + esc(meta.join(' · ')) + '</div>'
       + (extra.length ? '<div class="oc-extra">' + extra.join(' — ') + '</div>' : '')
       + '</div>'
@@ -125,6 +158,7 @@
   }
 
   async function executarAcao(acao, o) {
+    if (acao === 'descricao') { abrirVisor(o.titulo_planejado, D.descricaoDe(o)); return; }
     const agora = Date.now();
     let patch = null;
     if (acao === 'iniciar') {
@@ -426,7 +460,7 @@
   function modeloNovo(tipo) {
     const hoje = H.hojeIso();
     const novo = { id: null, nome: '', hora_inicio: '18:00', intervalo_dias: null, dias_semana: [H.diaSemana(hoje)],
-      data_inicio: hoje, data_fim: null, ativo: true, lembrete_minutos: 5, itens: [] };
+      data_inicio: hoje, data_fim: null, ativo: true, lembrete_minutos: 5, descricao: '', itens: [] };
     if (tipo === 'modelo') novo.recorrencia = 'semanal';
     else { novo.recorrencia = 'unica'; novo.data_fim = hoje; novo.hora_inicio = horaPadraoHoje(); }   // data específica de hoje: agora + 5 min
     return novo;
@@ -525,7 +559,9 @@
         + '<small>da atividade com este nome</small></label>'
         + '<label>Data <input type="date" id="pl-data" value="' + esc(r.data_inicio || '') + '" min="' + hoje + '" required>'
         + '<small id="pl-data-dia">' + esc(r.data_inicio ? H.dataExtensa(r.data_inicio) : '') + '</small></label>'
-        + lembrete.replace('<label>Lembrete', '<label class="campo-lembrete">Lembrete') + '</div>'
+        + lembrete.replace('<label>Lembrete', '<label class="campo-lembrete">Lembrete')
+        + '<label class="campo-descricao">Descrição <textarea id="pl-descricao" rows="2" placeholder="Link do Google Docs (https://docs.google.com/document/d/...) ou um texto">'
+        + esc(r.descricao || '') + '</textarea><small>aparece no botão Descrição da tela Execução</small></label></div>'
       : '<div class="form-grade">'
         + '<label>Nome do modelo <input id="pl-nome" value="' + esc(r.nome) + '" placeholder="Ex.: Manhã" maxlength="80" required></label>'
         + inicio + lembrete + ativo + '</div>'
@@ -911,6 +947,7 @@
       r.itens.forEach(function (it) { if (it.tipo === 'livre') it.titulo = r.nome.trim(); });   // atividade própria usa o nome como título
       sujar(); renderSequencia();
     });
+    if ($('#pl-descricao')) $('#pl-descricao').addEventListener('input', function (e) { r.descricao = e.target.value; rascunhoSujo = true; });
     if ($('#pl-dur-sel')) {
       $('#pl-dur-sel').value = opcaoDuracao(r.duracao_livre_seg);
       $('#pl-dur-sel').addEventListener('change', function (e) {

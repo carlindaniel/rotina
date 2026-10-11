@@ -97,6 +97,7 @@
     function modeloDeLinha(r) {
       return { id: r.id, nome: r.nome, recorrencia: r.recorrencia, dias_semana: (r.dias_semana || []).map(Number), intervalo_dias: r.intervalo_dias,
         data_inicio: r.data_inicio, data_fim: r.data_fim, hora_inicio: hhmm(r.hora_inicio), lembrete_minutos: r.lembrete_minutos, ativo: r.ativo,
+        descricao: r.descricao || '',
         itens: (r.agenda_modelo_itens || []).slice().sort(function (a, b) { return a.posicao - b.posicao; }).map(itemDeLinha) };
     }
     function payloadModelo(m) {
@@ -173,6 +174,13 @@
       async listarCatalogo() { return clonar(catalogo); },
       async listarMotivos() { return clonar(motivos); },
       itemCatalogo: function (o) { return itemCatalogo(o); },
+      /** O que o visor mostra para uma ocorrência: o link do catálogo (rotina/exercício) ou a descrição da data específica. */
+      descricaoDe: function (o) {
+        const c = itemCatalogo(o);
+        if (c && c.url) return c.url;
+        const m = o.modelo_id && modelos.find(function (x) { return x.id === o.modelo_id; });
+        return m && H.tipoRecorrencia(m) === 'unica' ? m.descricao || '' : '';
+      },
       expandir: expandir,
       sequenciaModelo: sequenciaModelo,
 
@@ -208,6 +216,12 @@
         const conflitos = conflitosDe(c);
         if (conflitos.total) throw erroDeConflito(conflitos);
         const id = await rpc('agenda_salvar_modelo', { p_modelo: payloadModelo(c) });   // o banco confere de novo e grava numa transação
+        const descricao = tipo === 'unica' ? ((m.descricao || '').trim() || null) : null;   // só data específica tem descrição própria
+        const antiga = modelos.find(function (x) { return x.id === id; });
+        if (descricao || (antiga && antiga.descricao)) {
+          const u = await cliente.from('agenda_modelos').update({ descricao: descricao }).eq('id', id);
+          if (u.error) throw erro(u.error);
+        }
         await recarregarModelos();
         return clonar(modelos.find(function (x) { return x.id === id; }));
       },

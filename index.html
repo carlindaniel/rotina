@@ -43,6 +43,23 @@
     </form>
   </dialog>
 
+  <dialog id="visor" class="modal visor" aria-labelledby="visor-titulo">
+    <form method="dialog">
+      <h2 id="visor-titulo"></h2>
+      <div class="visor-corpo">
+        <div class="visor-doc" id="visor-doc" hidden><iframe id="visor-frame" src="about:blank" title="Descrição" allowfullscreen></iframe></div>
+        <div class="visor-texto" id="visor-texto" hidden></div>
+      </div>
+      <div class="modal-acoes">
+        <span class="visor-links" id="visor-links">
+          <button type="button" class="btn" id="visor-recarregar">Recarregar</button>
+          <a class="btn" id="visor-abrir" href="#" target="_blank" rel="noopener">Abrir em nova aba ↗</a>
+        </span>
+        <button value="fechar" type="submit" class="btn primario">Fechar</button>
+      </div>
+    </form>
+  </dialog>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="js/horarios.js"></script>

@@ -426,6 +426,16 @@ details summary:hover { color: var(--acento-hover); }
 }
 :root[data-theme="light"] .modal-acoes { background: var(--superficie-2); }
 
+/* ----- Visor de descrição (Google Docs incorporado ou texto) ----- */
+.modal.visor { width: min(1000px, calc(100vw - 32px)); }
+.visor-corpo { padding: 16px 24px; }
+.visor-doc { height: 75vh; min-height: 420px; background: #fff; border: 1px solid var(--borda); border-radius: var(--raio-sm); overflow: hidden; }
+.visor-doc iframe { width: 100%; height: 100%; border: 0; display: block; }
+.visor-texto { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; max-height: 70vh; overflow-y: auto; }
+.visor .modal-acoes { align-items: center; }
+.visor-links { display: flex; gap: 10px; margin-right: auto; }
+.visor-links[hidden] { display: none; }
+
 /* ----- Toast ----- */
 .toast {
   position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 16px) scale(.96); opacity: 0; pointer-events: none;
@@ -706,7 +716,8 @@ details summary:hover { color: var(--acento-hover); }
 
 /* ----- Data específica: nome em cima; início, duração e data na 2ª linha ----- */
 .form-grade.data-especifica { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.data-especifica .campo-nome, .data-especifica .campo-lembrete { grid-column: 1 / -1; }
+.data-especifica .campo-nome, .data-especifica .campo-lembrete, .data-especifica .campo-descricao { grid-column: 1 / -1; }
+.data-especifica .campo-descricao textarea { width: 100%; resize: vertical; }
 .data-especifica .campo-nome input { width: 100%; }
 .data-especifica select, .data-especifica input[type="time"], .data-especifica input[type="date"] { width: 100%; }
 #pl-dur-livre { margin-top: 6px; width: 100%; }
@@ -737,7 +748,8 @@ details summary:hover { color: var(--acento-hover); }
   .previa-dias { gap: 3px; }
   .dia-chip { font-size: 0.68rem; padding: 5px 1px; border-radius: 10px; }
   .prev-item { grid-template-columns: 52px minmax(0, 1fr); grid-template-areas: "hora info" "hora estado"; }
-  .modal h2, #modal-corpo { padding-left: 18px; padding-right: 18px; }
+  .modal h2, #modal-corpo, .visor-corpo { padding-left: 18px; padding-right: 18px; }
+  .visor-doc { height: 65vh; min-height: 320px; }
   .modal-acoes { padding: 12px 18px; }
 }
 
