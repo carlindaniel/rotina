@@ -6,7 +6,8 @@
  * de conflitos ao salvar, para que as duas nunca discordem.
  *
  * Sobreposição: dois intervalos [início, fim) se sobrepõem quando cada um começa antes de o outro
- * terminar. Terminar exatamente quando o outro começa NÃO é conflito.
+ * terminar. Terminar exatamente quando o outro começa NÃO é conflito. Atividades de até 1 min
+ * nunca conflitam: podem ficar no mesmo horário de qualquer outra.
  * Os horários são instantes absolutos (ms), então atividades que passam da meia-noite
  * também conflitam com as do dia seguinte.
  */
@@ -46,7 +47,9 @@
     return out.sort(function (a, b) { return a.inicio - b.inicio; });
   }
 
-  function sobrepoe(a, b) { return a.inicio < b.fim && b.inicio < a.fim; }
+  const CURTA_MS = 60 * 1000;   // atividades de até 1 min podem ficar no mesmo horário de qualquer outra
+  function curta(x) { return x.fim - x.inicio <= CURTA_MS; }
+  function sobrepoe(a, b) { return !curta(a) && !curta(b) && a.inicio < b.fim && b.inicio < a.fim; }
 
   /** Acrescenta `conflitos` (lista dos itens com que se sobrepõe) a cada item da lista. */
   function marcarConflitos(itens) {
