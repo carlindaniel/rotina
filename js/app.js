@@ -544,7 +544,14 @@
           programacao: x.avulsa ? 'Avulsa' : x.modelo_nome, situacao: 'Prevista' });
       });
     }
-    return linhas.sort(function (a, b) { return a.data < b.data ? -1 : a.data > b.data ? 1 : a.inicio - b.inicio; });
+    // mesma atividade, mesma programação e mesmo horário entra uma vez só
+    const vistas = {};
+    return linhas.filter(function (l) {
+      const chave = [l.data, l.inicio, l.fim, l.titulo, l.programacao].join('|');
+      if (vistas[chave]) return false;
+      vistas[chave] = true;
+      return true;
+    }).sort(function (a, b) { return a.data < b.data ? -1 : a.data > b.data ? 1 : a.inicio - b.inicio; });
   }
 
   function dataBr(iso) { const p = iso.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
