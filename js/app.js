@@ -527,6 +527,7 @@
    * cancelamentos e status); depois dele, projeta pelos modelos ativos e atividades avulsas.
    */
   async function linhasRotina(de, ate) {
+    await D.recarregar();   // programações e avulsas atuais (inclusive alteradas em outra aba ou aparelho)
     const hoje = H.hojeIso(), gerado = H.somarDias(hoje, D.HORIZONTE_DIAS);
     const nomes = {};
     (await D.listarModelos()).forEach(function (m) { nomes[m.id] = m.nome; });
@@ -959,7 +960,7 @@
       + camposTopo
       + '<ol id="seq-lista" class="seq-lista"></ol>'
       + '<div class="seq-rodape"><p id="seq-total" class="seq-total"></p>'
-      + '<p class="ajuda">Ao salvar, as ocorrências futuras ainda não iniciadas são recalculadas. Registros já feitos, ajustes manuais e o histórico não mudam. A duração do catálogo nunca é alterada.</p>'
+      + '<p class="ajuda">Ao salvar, as ocorrências de hoje em diante ainda sem registro são recalculadas, inclusive as de hoje cujo horário já passou. Registros já feitos, ajustes manuais e o histórico não mudam. A duração do catálogo nunca é alterada.</p>'
       + '<div class="botoes"><button type="button" class="btn" id="pl-descartar">Descartar alterações</button>'
       + '<button type="button" class="btn primario" id="pl-salvar">' + (data ? 'Salvar na data' : 'Salvar modelo') + '</button></div></div>'
       + '</section></div>'

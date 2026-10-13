@@ -12,7 +12,7 @@ Projeto Supabase: `ixrwnrwdsasuerjwidgj`
 3. Confira: `select count(*) from agenda_motivos;` deve devolver `5`.
 4. Execute também [`supabase/migrations/20261015000000_agenda_descricao.sql`](../supabase/migrations/20261015000000_agenda_descricao.sql) (campo **Descrição** das datas específicas, exibido no botão **Descrição** da Execução).
 5. Execute também [`supabase/migrations/20261016000000_agenda_conflito_1min.sql`](../supabase/migrations/20261016000000_agenda_conflito_1min.sql) (atividades de até 1 min podem ficar no mesmo horário de qualquer outra).
-6. Execute também [`supabase/migrations/20261017000000_agenda_sem_duplicadas.sql`](../supabase/migrations/20261017000000_agenda_sem_duplicadas.sql) (evita e remove atividades duplicadas no mesmo dia depois de editar uma programação).
+6. Execute também [`supabase/migrations/20261017000000_agenda_sem_duplicadas.sql`](../supabase/migrations/20261017000000_agenda_sem_duplicadas.sql) (ao editar uma programação, recalcula também as atividades de hoje ainda sem registro e remove duplicadas).
 
 Pode executar de novo sem problema. O script **não altera** `rotina`, `exercicios` nem `listas_area`: só as referencia.
 Abra o `index.html` e entre: modelos, datas específicas, execução e histórico já passam a ser gravados no Supabase.
