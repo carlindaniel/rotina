@@ -463,12 +463,167 @@
       + kpi('Não realizadas', ind.naoRealizadas, ind.naoRealizadasAuto + ' marcadas automaticamente')
       + kpi('Pontualidade', pct(ind.pontualidade), 'início até ' + D.TOLERANCIA_PONTUALIDADE_MIN + ' min após o previsto · base ' + ind.comInicio)
       + '</div><a class="link" href="#analises">Ver análises</a></section>'
+      + cartaoImpressao()
       + '<section class="cartao google" id="google-card"><h2>Google Agenda</h2><p class="ajuda">Verificando…</p></section>';
   }
 
   function kpi(rotulo, valor, detalhe) {
     return '<div class="kpi"><span class="kpi-rotulo">' + esc(rotulo) + '</span><span class="kpi-valor">'
       + esc(valor) + '</span><span class="kpi-detalhe">' + esc(detalhe) + '</span></div>';
+  }
+
+  // ---------- Impressão da rotina (cartão do Painel): PDF e Excel ----------
+  const LIBS_IMPRESSAO = {
+    pdf: ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'],
+    xls: ['https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'],
+  };
+  const scriptsCarregados = {};
+  /** Carrega os scripts em ordem, uma única vez (só quando a exportação é usada). */
+  async function carregarScripts(urls) {
+    for (const url of urls) {
+      if (!scriptsCarregados[url]) {
+        scriptsCarregados[url] = new Promise(function (ok, falha) {
+          const s = document.createElement('script');
+          s.src = url; s.onload = ok;
+          s.onerror = function () { delete scriptsCarregados[url]; falha(new Error('Não foi possível carregar a biblioteca de exportação. Verifique a conexão.')); };
+          document.head.appendChild(s);
+        });
+      }
+      await scriptsCarregados[url];
+    }
+  }
+
+  function cartaoImpressao() {
+    const hoje = H.hojeIso();
+    return '<section class="cartao impressao" id="impressao-card"><h2>Imprimir rotina</h2>'
+      + '<div class="segmentado" role="group" aria-label="Período">'
+      + [7, 14, 30].map(function (n, i) {
+        return '<button type="button" data-periodo="' + n + '" aria-pressed="' + (i === 0) + '">Próximos ' + n + ' dias</button>';
+      }).join('')
+      + '<button type="button" data-periodo="datas" aria-pressed="false">Período de datas</button></div>'
+      + '<div class="form-grade periodo-impressao" id="imp-datas" hidden>'
+      + '<label>De <input type="date" id="imp-de" value="' + hoje + '"></label>'
+      + '<label>Até <input type="date" id="imp-ate" value="' + H.somarDias(hoje, 6) + '"></label></div>'
+      + '<p class="ajuda" id="imp-resumo"></p>'
+      + '<div class="botoes"><button type="button" class="btn" data-exportar="pdf">Baixar PDF</button>'
+      + '<button type="button" class="btn" data-exportar="xls">Baixar Excel</button></div></section>';
+  }
+
+  /** Intervalo escolhido no cartão de impressão: { de, ate } ou erro. Os "próximos N dias" incluem hoje. */
+  function periodoImpressao(card) {
+    const sel = card.querySelector('[data-periodo][aria-pressed="true"]').dataset.periodo;
+    const hoje = H.hojeIso();
+    if (sel !== 'datas') return { de: hoje, ate: H.somarDias(hoje, Number(sel) - 1) };
+    const de = $('#imp-de').value, ate = $('#imp-ate').value;
+    if (!de || !ate) return { erro: 'Informe as duas datas do período.' };
+    if (ate < de) return { erro: 'A data final é anterior à inicial.' };
+    if (H.somarDias(de, 366) <= ate) return { erro: 'Escolha um período de até 1 ano.' };
+    return { de: de, ate: ate };
+  }
+
+  /**
+   * Linhas da rotina no período. Até o horizonte já gerado usa as ocorrências gravadas (com ajustes,
+   * cancelamentos e status); depois dele, projeta pelos modelos ativos e atividades avulsas.
+   */
+  async function linhasRotina(de, ate) {
+    const hoje = H.hojeIso(), gerado = H.somarDias(hoje, D.HORIZONTE_DIAS);
+    const nomes = {};
+    (await D.listarModelos()).forEach(function (m) { nomes[m.id] = m.nome; });
+    const linhas = [];
+    const fimGravado = ate < gerado ? ate : gerado;
+    if (de <= fimGravado) {
+      (await D.listarOcorrencias(de, fimGravado)).forEach(function (o) {
+        linhas.push({ data: o.data, inicio: o.inicio_planejado, fim: o.fim_planejado, titulo: o.titulo_planejado,
+          programacao: o.modelo_id ? (nomes[o.modelo_id] || 'Modelo removido') : 'Avulsa', situacao: STATUS[statusVisual(o)].rotulo });
+      });
+    }
+    for (let d = de > gerado ? de : H.somarDias(gerado, 1); d <= ate; d = H.somarDias(d, 1)) {
+      D.projetarDia(d).forEach(function (x) {
+        linhas.push({ data: d, inicio: x.inicio, fim: x.fim, titulo: x.titulo,
+          programacao: x.avulsa ? 'Avulsa' : x.modelo_nome, situacao: 'Prevista' });
+      });
+    }
+    return linhas.sort(function (a, b) { return a.data < b.data ? -1 : a.data > b.data ? 1 : a.inicio - b.inicio; });
+  }
+
+  function dataBr(iso) { const p = iso.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+  function duracaoLinha(l) { return H.duracaoTexto(Math.round((l.fim - l.inicio) / 1000)); }
+
+  async function exportarPdf(linhas, de, ate) {
+    await carregarScripts(LIBS_IMPRESSAO.pdf);
+    const doc = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    doc.setFontSize(16); doc.text('Minha Rotina', 40, 44);
+    doc.setFontSize(10); doc.setTextColor(90);
+    doc.text('Período: ' + dataBr(de) + ' a ' + dataBr(ate) + ' · ' + linhas.length + ' atividades', 40, 62);
+    const corpo = [];
+    let diaAtual = null;
+    linhas.forEach(function (l) {
+      if (l.data !== diaAtual) {   // linha de cabeçalho para cada dia
+        diaAtual = l.data;
+        corpo.push([{ content: H.dataExtensa(l.data), colSpan: 5, styles: { fontStyle: 'bold', fillColor: [236, 233, 252] } }]);
+      }
+      corpo.push([H.horaDe(l.inicio) + ' - ' + H.horaDe(l.fim), l.titulo, duracaoLinha(l), l.programacao, l.situacao]);
+    });
+    if (!corpo.length) corpo.push([{ content: 'Nenhuma atividade no período.', colSpan: 5 }]);
+    doc.autoTable({
+      startY: 76, head: [['Horário', 'Atividade', 'Duração', 'Programação', 'Situação']], body: corpo,
+      styles: { fontSize: 9, cellPadding: 4 }, headStyles: { fillColor: [91, 69, 224] },
+      columnStyles: { 0: { cellWidth: 72 }, 2: { cellWidth: 56 }, 4: { cellWidth: 70 } },
+      didDrawPage: function () {
+        doc.setFontSize(8); doc.setTextColor(120);
+        doc.text('Página ' + doc.internal.getNumberOfPages(), doc.internal.pageSize.getWidth() - 80, doc.internal.pageSize.getHeight() - 20);
+      },
+    });
+    doc.save('rotina_' + de + '_a_' + ate + '.pdf');
+  }
+
+  async function exportarXls(linhas, de, ate) {
+    await carregarScripts(LIBS_IMPRESSAO.xls);
+    const X = window.XLSX;
+    const dados = [['Data', 'Dia', 'Início', 'Fim', 'Duração', 'Atividade', 'Programação', 'Situação']].concat(linhas.map(function (l) {
+      return [dataBr(l.data), H.NOMES_DIA[H.diaSemana(l.data)], H.horaDe(l.inicio), H.horaDe(l.fim), duracaoLinha(l),
+        l.titulo, l.programacao, l.situacao];
+    }));
+    const ws = X.utils.aoa_to_sheet(dados);
+    ws['!cols'] = [12, 6, 8, 8, 10, 40, 24, 14].map(function (w) { return { wch: w }; });
+    ws['!autofilter'] = { ref: 'A1:H' + dados.length };
+    const wb = X.utils.book_new();
+    X.utils.book_append_sheet(wb, ws, 'Rotina');
+    X.writeFile(wb, 'rotina_' + de + '_a_' + ate + '.xlsx');
+  }
+
+  function aposImpressao() {
+    const card = $('#impressao-card');
+    if (!card) return;
+    function atualizarResumo() {
+      const p = periodoImpressao(card);
+      $('#imp-resumo').textContent = p.erro || (dataBr(p.de) + ' a ' + dataBr(p.ate));
+    }
+    card.addEventListener('click', async function (e) {
+      const per = e.target.closest('[data-periodo]');
+      if (per) {
+        card.querySelectorAll('[data-periodo]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === per)); });
+        $('#imp-datas').hidden = per.dataset.periodo !== 'datas';
+        atualizarResumo();
+        return;
+      }
+      const ex = e.target.closest('[data-exportar]');
+      if (!ex) return;
+      const p = periodoImpressao(card);
+      if (p.erro) { toast(p.erro, true); return; }
+      const botoes = card.querySelectorAll('[data-exportar]');
+      botoes.forEach(function (b) { b.disabled = true; });
+      try {
+        const linhas = await linhasRotina(p.de, p.ate);
+        if (ex.dataset.exportar === 'pdf') await exportarPdf(linhas, p.de, p.ate);
+        else await exportarXls(linhas, p.de, p.ate);
+        toast('Arquivo gerado: ' + plural(linhas.length, 'atividade', 'atividades') + '.');
+      } catch (err) { toast(err.message || 'Não foi possível gerar o arquivo.', true); }
+      finally { botoes.forEach(function (b) { b.disabled = false; }); }
+    });
+    card.addEventListener('change', atualizarResumo);
+    atualizarResumo();
   }
 
   // ---------- Google Agenda (cartão do Painel) ----------
@@ -561,6 +716,7 @@
   }
 
   function aposPainel() {
+    aposImpressao();
     const card = $('#google-card');
     if (!card) return;
     card.addEventListener('click', function (e) {
@@ -763,9 +919,15 @@
         }).join('') + '</div></div>'
         + '<div id="rec-intervalo"' + (op === 'icustom' ? '' : ' hidden') + '><label>Repetir a cada <span class="com-sufixo">'
         + '<input type="number" id="pl-intervalo" min="1" max="365" value="' + (r.intervalo_dias || '') + '"> dias</span></label></div>'
+        + '<div class="form-grade periodo">'
+        + '<label>A partir de <input type="date" id="pl-de" value="' + esc(r.data_inicio || '') + '">'
+        + '<small>opcional · pode ser no passado · em branco = hoje</small></label>'
+        + '<label>Até <input type="date" id="pl-ate" value="' + esc(r.data_fim || '') + '"'
+        + (r.data_inicio ? ' min="' + r.data_inicio + '"' : '') + '>'
+        + '<small>opcional · em branco = sem data final</small></label></div>'
         + '<p class="ajuda" id="rec-ajuda-intervalo"' + (op.charAt(0) === 'i' ? '' : ' hidden')
-        + '>Os dias são contados a partir de <strong>' + esc(r.data_inicio ? fmtData(r.data_inicio) : 'hoje')
-        + '</strong> (data em que o modelo começou): esse é o 1º dia e depois repete no intervalo escolhido.</p>'
+        + '>Os dias são contados a partir de <strong id="rec-ajuda-de">' + esc(r.data_inicio ? fmtData(r.data_inicio) : 'hoje')
+        + '</strong> (data “A partir de”): esse é o 1º dia e depois repete no intervalo escolhido.</p>'
         + '<p class="ajuda" id="rec-previa"></p>'
         + '</fieldset>';
 
@@ -1092,7 +1254,7 @@
         } else {
           r.recorrencia = 'semanal'; r.intervalo_dias = null; r.data_fim = null;
           r.dias_semana = [H.diaSemana(r.data_inicio || hoje)];
-          r.data_inicio = hoje;   // o modelo começa hoje (não há campo de data inicial)
+          r.data_inicio = hoje;   // o modelo começa hoje (ajustável em "A partir de")
         }
         previaEstado.modelo = null;   // recalcula a data inicial da prévia
         sujar(); renderizar();
@@ -1214,6 +1376,22 @@
     });
     atualizarPrevia();
 
+    // período do modelo: "A partir de" (pode ser no passado; em branco = hoje) e "Até" (em branco = sem fim)
+    function lerPeriodo() {
+      const de = $('#pl-de'), ate = $('#pl-ate');
+      r.data_inicio = de.value || H.hojeIso();
+      r.data_fim = ate.value || null;
+      ate.min = r.data_inicio;
+      ate.setAttribute('aria-invalid', r.data_fim && r.data_fim < r.data_inicio ? 'true' : 'false');
+      $('#rec-ajuda-de').textContent = de.value ? fmtData(de.value) : 'hoje';
+      previaEstado.modelo = null;   // recalcula a data inicial da prévia
+      sujar(); atualizarPrevia(); renderProgramacao();
+    }
+    if ($('#pl-de')) {
+      $('#pl-de').addEventListener('change', lerPeriodo);
+      $('#pl-ate').addEventListener('change', lerPeriodo);
+    }
+
     /** Define o início de uma atividade ('' = automático). A 1ª atividade define o início da sequência. */
     function definirInicio(i, v) {
       const it = r.itens[i];
@@ -1309,6 +1487,10 @@
             const campo = $('#pl-inicio'); campo.min = horaAgora(); campo.scrollIntoView({ block: 'center' }); campo.focus();
             toast('Para hoje, o início deve ser a partir de agora (' + horaAgora() + ').', true); return;
           }
+        }
+        if (!ehData(r) && r.data_fim && r.data_fim < r.data_inicio) {
+          const campo = $('#pl-ate'); campo.scrollIntoView({ block: 'center' }); campo.focus();
+          toast('A data “Até” é anterior à data “A partir de”.', true); return;
         }
         if (!ehData(r) && !r.hora_inicio && !(r.itens[0] && r.itens[0].hora_fixa)) {
           const campo = $('#pl-inicio'); campo.scrollIntoView({ block: 'center' }); campo.focus();

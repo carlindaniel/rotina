@@ -10,6 +10,7 @@ Projeto Supabase: `ixrwnrwdsasuerjwidgj`
 1. Supabase → **SQL Editor** → **New query**.
 2. Cole **todo** o conteúdo de [`supabase/migrations/20261012000000_agenda_schema.sql`](../supabase/migrations/20261012000000_agenda_schema.sql) e clique em **Run**.
 3. Confira: `select count(*) from agenda_motivos;` deve devolver `5`.
+4. Execute também [`supabase/migrations/20261015000000_agenda_descricao.sql`](../supabase/migrations/20261015000000_agenda_descricao.sql) (campo **Descrição** das datas específicas, exibido no botão **Descrição** da Execução).
 
 Pode executar de novo sem problema. O script **não altera** `rotina`, `exercicios` nem `listas_area`: só as referencia.
 Abra o `index.html` e entre: modelos, datas específicas, execução e histórico já passam a ser gravados no Supabase.

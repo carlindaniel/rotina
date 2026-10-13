@@ -753,6 +753,9 @@ details summary:hover { color: var(--acento-hover); }
 .google .botoes { justify-content: flex-start; margin-top: 12px; }
 
 /* ----- Data específica: nome em cima; início, duração e data na 2ª linha ----- */
+.impressao .segmentado { margin-bottom: 12px; }
+.periodo-impressao { max-width: 420px; }
+@media print { .impressao { display: none; } }
 .form-grade.data-especifica { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .data-especifica .campo-nome, .data-especifica .campo-lembrete, .data-especifica .campo-descricao { grid-column: 1 / -1; }
 .campo-descricao { display: flex; flex-direction: column; gap: 5px; }

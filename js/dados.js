@@ -162,6 +162,7 @@
       modo: 'supabase',
       DURACAO_LIVRE_PADRAO_SEG: DURACAO_LIVRE_PADRAO_SEG,
       TOLERANCIA_PONTUALIDADE_MIN: 10,
+      HORIZONTE_DIAS: HORIZONTE_DIAS,
 
       /** Marca o que venceu, gera os próximos dias e carrega os dados. */
       async iniciar() {
