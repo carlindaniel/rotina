@@ -821,3 +821,22 @@ details summary:hover { color: var(--acento-hover); }
   .cartao, .kpis-4 .kpi { box-shadow: none !important; break-inside: avoid; }
   .kpis-4 .kpi::after, .grade-painel > .cartao:first-child::after, .marca::before { display: none; }
 }
+
+/* ----- Temporizador (barra fixa no rodapé; vai para dentro da janela aberta) e alarme ----- */
+.temporizador {
+  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 60;
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; max-width: calc(100vw - 32px);
+  border: 1px solid var(--eixo); border-radius: 999px; background: var(--flutuante); color: var(--tinta);
+  box-shadow: var(--sombra-flutuante);
+}
+.temporizador[hidden] { display: none; }
+.tmp-texto { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.tmp-tempo { font-variant-numeric: tabular-nums; font-size: 1.05rem; }
+.tmp-titulo { font-size: 0.78rem; color: var(--tinta-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50vw; }
+.temporizador.esgotado { border-color: var(--critico-tinta); animation: alarmePulsa 1s ease-in-out infinite; }
+.temporizador.esgotado .tmp-tempo { color: var(--critico-tinta); }
+@keyframes alarmePulsa { 50% { box-shadow: 0 0 0 6px rgba(220, 70, 70, 0.25), var(--sombra-flutuante); } }
+.modal.alarme { width: min(420px, calc(100vw - 32px)); }
+.alarme-corpo { padding: 20px 24px; }
+.alarme-titulo { font-size: 1.15rem; font-weight: 600; margin: 0 0 6px; }
+@media print { .temporizador { display: none !important; } }

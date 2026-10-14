@@ -4,7 +4,7 @@
 (function (A) {
   'use strict';
 
-  const H = A.horarios, I = A.indicadores;
+  const H = A.horarios, I = A.indicadores, T = A.temporizador;
   let D = null;
   const $ = function (s, r) { return (r || document).querySelector(s); };
   const conteudo = $('#conteudo');
@@ -334,6 +334,7 @@
   }
 
   async function executarAcao(acao, o) {
+    if (acao === 'iniciar') T.preparar();   // ainda dentro do clique: libera o som do alarme
     if (acao === 'descricao') {
       const d = D.descricaoDe(o);
       if (!d) return;
@@ -399,7 +400,9 @@
     }
     if (!patch) return;
     const atualizada = await D.atualizarOcorrencia(o.id, patch);
-    toast('Registro atualizado.');
+    if (acao === 'iniciar') T.iniciar(o.id, o.titulo_planejado, o.duracao_planejada_seg);
+    else if (patch.status) T.parar(o.id);   // concluiu, não realizou, cancelou ou desfez: encerra o temporizador
+    toast(acao === 'iniciar' ? 'Iniciada. O alarme toca em ' + H.duracaoTexto(o.duracao_planejada_seg) + '.' : 'Registro atualizado.');
     renderizar();
     // Google Agenda: concluir marca ✓ no evento; desfazer a conclusão tira o ✓ (em segundo plano, sem travar a tela)
     if (atualizada.gcal_event_id && patch.status && (patch.status === 'concluida' || o.status === 'concluida')) {
@@ -413,6 +416,14 @@
     const b = ev.target.closest('[data-acao]');
     if (!b || !ocCache[b.dataset.id]) return;
     executarAcao(b.dataset.acao, ocCache[b.dataset.id]).catch(function (e) { toast(e.message, true); });
+  });
+
+  // "Concluir atividade" na janela do alarme: abre o mesmo registro de conclusão da tela Execução
+  T.aoConcluir(async function (id) {
+    try {
+      const o = ocCache[id] || (await D.listarOcorrencias(H.hojeIso(), H.hojeIso())).find(function (x) { return x.id === id; });
+      if (o && o.status === 'em_andamento') await executarAcao('concluir', o);
+    } catch (e) { toast(e.message, true); }
   });
 
   // ---------- Painel ----------
@@ -1933,6 +1944,7 @@
 
   async function carregarDados() {
     const r = await D.iniciar();
+    T.retomar();
     catalogo = await D.listarCatalogo();
     motivos = await D.listarMotivos();
     await renderizar();
