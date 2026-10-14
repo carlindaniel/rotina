@@ -830,6 +830,35 @@ details summary:hover { color: var(--acento-hover); }
   box-shadow: var(--sombra-flutuante);
 }
 .temporizador[hidden] { display: none; }
+.tmp-abrir {
+  display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0; border: 0; background: none;
+  color: inherit; font: inherit; text-align: left; cursor: zoom-in;
+}
+.tmp-botoes { display: flex; gap: 8px; }
+.tmp-progresso, .tmp-voltar { display: none; }
+/* Tela inteira: tempo bem grande, barra de progresso e botão Voltar */
+.temporizador.grande {
+  inset: 0; left: 0; bottom: 0; transform: none; max-width: none; z-index: 80; border-radius: 0; border: 0;
+  flex-direction: column; justify-content: center; gap: 28px; padding: 24px 16px;
+  background: var(--plano); box-shadow: none;
+}
+.temporizador.grande .tmp-abrir { flex-direction: column; gap: 12px; text-align: center; cursor: zoom-out; max-width: 100%; }
+.temporizador.grande .tmp-icone { font-size: clamp(1.6rem, 6vw, 2.6rem); }
+.temporizador.grande .tmp-texto { align-items: center; gap: 14px; }
+.temporizador.grande .tmp-tempo { font-size: clamp(4rem, 24vw, 15rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+.temporizador.grande .tmp-titulo { font-size: clamp(1.1rem, 4.5vw, 1.8rem); color: var(--tinta-2); max-width: 90vw; white-space: normal; text-align: center; }
+.temporizador.grande .tmp-progresso {
+  display: block; width: min(640px, 90vw); height: 10px; border-radius: 999px; overflow: hidden; background: var(--preenchimento);
+  border: 1px solid var(--borda);
+}
+.temporizador.grande .tmp-progresso span { display: block; height: 100%; background: var(--acento); transition: width .5s linear; }
+.temporizador.grande.esgotado .tmp-progresso span { background: var(--critico-tinta); }
+.temporizador.grande .tmp-voltar { display: inline-flex; }
+.temporizador.grande .tmp-botoes .btn { font-size: 1rem; padding: 10px 22px; }
+.temporizador.grande.esgotado { animation: none; }
+.temporizador.grande.esgotado .tmp-tempo { font-size: clamp(2.6rem, 12vw, 8rem); animation: alarmePisca 1s steps(2) infinite; }
+@keyframes alarmePisca { 50% { opacity: .35; } }
+html.tmp-tela-cheia, html.tmp-tela-cheia body { overflow: hidden; }
 .tmp-texto { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
 .tmp-tempo { font-variant-numeric: tabular-nums; font-size: 1.05rem; }
 .tmp-titulo { font-size: 0.78rem; color: var(--tinta-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50vw; }

@@ -19,6 +19,7 @@
   const CHAVE = 'agenda.temporizador';
   const ALARME_SEG = 120;          // quanto tempo o alarme toca se ninguém parar
   let estado = null;               // { id, titulo, inicio, fim, tocando }
+  let grande = false;   // modo tela inteira (enquanto aberto, a tela não apaga: ver js/manter-tela.js)
   let ctx = null, alarmeEm = null, alarmeNos = [], audioVivo = null, tique = null, aoConcluir = null;
 
   const $ = function (s) { return document.querySelector(s); };
@@ -111,11 +112,16 @@
     if (!b) {
       b = document.createElement('div');
       b.id = 'temporizador'; b.className = 'temporizador'; b.setAttribute('role', 'timer'); b.hidden = true;
-      b.innerHTML = '<span class="tmp-icone" aria-hidden="true">⏱</span>'
-        + '<span class="tmp-texto"><strong class="tmp-tempo"></strong><span class="tmp-titulo"></span></span>'
-        + '<button type="button" class="btn pequeno tmp-som" hidden>Ativar som</button>'
-        + '<button type="button" class="btn pequeno tmp-parar">Parar</button>';
+      b.innerHTML = '<button type="button" class="tmp-abrir" title="Ampliar o temporizador" aria-label="Ampliar o temporizador">'
+        + '<span class="tmp-icone" aria-hidden="true">⏱</span>'
+        + '<span class="tmp-texto"><strong class="tmp-tempo"></strong><span class="tmp-titulo"></span></span></button>'
+        + '<div class="tmp-progresso" aria-hidden="true"><span></span></div>'
+        + '<div class="tmp-botoes"><button type="button" class="btn pequeno tmp-som" hidden>Ativar som</button>'
+        + '<button type="button" class="btn pequeno tmp-parar">Parar</button>'
+        + '<button type="button" class="btn pequeno tmp-voltar">Voltar</button></div>';
       b.querySelector('.tmp-parar').addEventListener('click', function () { parar(); });
+      b.querySelector('.tmp-abrir').addEventListener('click', function () { ampliar(!grande); });
+      b.querySelector('.tmp-voltar').addEventListener('click', function () { ampliar(false); });
       b.querySelector('.tmp-som').addEventListener('click', function () {
         preparar();
         if (estado && !estado.tocando) agendarSom((estado.fim - Date.now()) / 1000);
@@ -130,10 +136,30 @@
     return b;
   }
 
+  /** Liga/desliga o modo tela inteira. Enquanto ampliado, a tela não apaga (Wake Lock ou, no iPhone, vídeo invisível). */
+  function ampliar(sim) {
+    grande = !!(sim && estado);
+    const b = barra();
+    b.classList.toggle('grande', grande);
+    b.querySelector('.tmp-abrir').setAttribute('aria-label', grande ? 'Voltar ao tamanho normal' : 'Ampliar o temporizador');
+    b.querySelector('.tmp-abrir').title = grande ? 'Voltar ao tamanho normal' : 'Ampliar o temporizador';
+    document.documentElement.classList.toggle('tmp-tela-cheia', grande);
+    if (grande) A.manterTela.ligar();
+    else {
+      A.manterTela.desligar();
+      // no iPhone o vídeo que mantém a tela acesa pode pausar o áudio de fundo: retoma para o alarme seguir valendo
+      if (estado && audioVivo && audioVivo.paused) audioVivo.play().catch(function () {});
+    }
+    if (grande) b.querySelector('.tmp-voltar').focus();
+  }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && grande) { e.preventDefault(); ampliar(false); } });
+
   function desenhar() {
     const b = barra();
-    if (!estado) { b.hidden = true; return; }
+    if (!estado) { b.hidden = true; if (grande) ampliar(false); return; }
     const resta = (estado.fim - Date.now()) / 1000;
+    const total = (estado.fim - estado.inicio) / 1000;
+    b.querySelector('.tmp-progresso span').style.width = (total > 0 ? Math.min(100, Math.max(0, (1 - resta / total) * 100)) : 100) + '%';
     b.hidden = false;
     b.classList.toggle('esgotado', resta <= 0);
     b.querySelector('.tmp-tempo').textContent = resta > 0 ? fmt(resta) : 'Tempo esgotado';
